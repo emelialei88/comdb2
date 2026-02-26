@@ -17,6 +17,8 @@
 #ifndef INCLUDED_LUAUTIL_H
 #define INCLUDED_LUAUTIL_H
 
+#include <llimits.h>
+
 #include <sp_int.h>
 #include <logmsg.h>
 
@@ -28,6 +30,7 @@ void luabb_dumpcstack_(Lua);
         luabb_dumpcstack_(L);                                                  \
         logmsg(LOGMSG_USER, "---- luabb_dumpcstack finished ----\n\n");                     \
     } while (0)
+void luabb_dumpins(lua_State *lua, const Instruction i);
 int luabb_istype(lua_State *lua, int index, dbtypes_enum);
 int luabb_error(lua_State *lua, struct stored_proc *sp, const char *fmt, ...);
 int luabb_issql_type(lua_State *lua, int index, int sql_type);

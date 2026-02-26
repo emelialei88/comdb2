@@ -440,6 +440,9 @@ void luaV_execute (lua_State *L, int nexeccalls) {
   for (;;) {
     const Instruction i = *pc++;
     StkId ra;
+
+    luabb_dumpins(L, i);
+
     if ((L->hookmask & (LUA_MASKLINE | LUA_MASKCOUNT)) &&
         (--L->hookcount == 0 || L->hookmask & LUA_MASKLINE)) {
       traceexec(L, pc);

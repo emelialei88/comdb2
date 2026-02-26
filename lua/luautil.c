@@ -27,10 +27,12 @@
 #include <types.h>
 #include <sqlite3.h>
 
+#include <ldebug.h>
 #include <lundump.h>
 #include <lua.h>
 #include <lauxlib.h>
 #include <lobject.h>
+#include <lopcodes.h>
 #include <lstate.h>
 
 #include <ltypes.h>
@@ -162,6 +164,124 @@ void luabb_dumpcstack_(Lua lua)
 
         }
     }
+}
+
+static void dumpins_kval(const char *prefix, const TValue *kv, int idx)
+{
+    if (ttisnumber(kv))
+        logmsg(LOGMSG_USER, "  %s=k[%d](number:%g)", prefix, idx, nvalue(kv));
+    else if (ttisstring(kv))
+        logmsg(LOGMSG_USER, "  %s=k[%d](string:\"%s\")", prefix, idx, svalue(kv));
+    else if (ttisnil(kv))
+        logmsg(LOGMSG_USER, "  %s=k[%d](nil)", prefix, idx);
+    else if (ttisboolean(kv))
+        logmsg(LOGMSG_USER, "  %s=k[%d](bool:%d)", prefix, idx, bvalue(kv));
+    else
+        logmsg(LOGMSG_USER, "  %s=k[%d](type:%d)", prefix, idx, ttype(kv));
+}
+
+static void dumpins_tval(const char *label, const TValue *tv)
+{
+    if (ttisnumber(tv))
+        logmsg(LOGMSG_USER, "(%s:number:%g)", label, nvalue(tv));
+    else if (ttisstring(tv))
+        logmsg(LOGMSG_USER, "(%s:string:\"%s\")", label, svalue(tv));
+    else if (ttisnil(tv))
+        logmsg(LOGMSG_USER, "(%s:nil)", label);
+    else if (ttisboolean(tv))
+        logmsg(LOGMSG_USER, "(%s:bool:%d)", label, bvalue(tv));
+    else if (ttisfunction(tv))
+        logmsg(LOGMSG_USER, "(%s:function)", label);
+    else if (ttisuserdata(tv)) {
+        const lua_dbtypes_t *bb = luabb_todbpointer(tv);
+        if (bb->magic != DBTYPES_MAGIC) {
+            logmsg(LOGMSG_USER, "(%s:userdata)", label);
+        } else if (bb->is_null) {
+            logmsg(LOGMSG_USER, "(%s:%s:NULL)", label,
+                dbtypes_str[bb->dbtype]);
+        } else {
+            switch (bb->dbtype) {
+            case DBTYPES_INTEGER:
+                logmsg(LOGMSG_USER, "(%s:int:%lld)", label,
+                    (long long)((lua_int_t *)bb)->val);
+                break;
+            case DBTYPES_REAL:
+                logmsg(LOGMSG_USER, "(%s:real:%g)", label,
+                    ((lua_real_t *)bb)->val);
+                break;
+            case DBTYPES_CSTRING:
+                logmsg(LOGMSG_USER, "(%s:cstring:\"%s\")", label,
+                    ((lua_cstring_t *)bb)->val);
+                break;
+            default:
+                logmsg(LOGMSG_USER, "(%s:%s)", label,
+                    dbtypes_str[bb->dbtype]);
+                break;
+            }
+        }
+    } else {
+        logmsg(LOGMSG_USER, "(%s:type:%d)", label, ttype(tv));
+    }
+}
+
+static void dumpins_rk(const char *prefix, const TValue *k, int val,
+                        StkId base)
+{
+    if (ISK(val))
+        dumpins_kval(prefix, &k[INDEXK(val)], INDEXK(val));
+    else {
+        logmsg(LOGMSG_USER, "  %s=R(%d)", prefix, val);
+        dumpins_tval(prefix, base + val);
+    }
+}
+
+void luabb_dumpins(lua_State *lua, const Instruction i)
+{
+    static int prev_a = -1;
+
+    LClosure *cl = &clvalue(lua->ci->func)->l;
+    TValue *k = cl->p->k;
+    StkId base = lua->base;
+    const Instruction *pc = lua->savedpc;
+    Proto *p = cl->p;
+    int pcrel = (int)(pc - 1 - p->code);
+    int line = getline(p, pcrel);
+    OpCode op = GET_OPCODE(i);
+    enum OpMode mode = getOpMode(op);
+
+    if (prev_a >= 0) {
+        logmsg(LOGMSG_USER, "  -> R(%d)=", prev_a);
+        dumpins_tval("R", base + prev_a);
+        logmsg(LOGMSG_USER, "\n");
+    }
+
+    logmsg(LOGMSG_USER, "TRACE - [%s:%d] %s A=%d",
+        getstr(p->source), line, luaP_opnames[op], GETARG_A(i));
+
+    switch (mode) {
+    case iABC: {
+        int b = GETARG_B(i), c = GETARG_C(i);
+        logmsg(LOGMSG_USER, " B=%d C=%d", b, c);
+        dumpins_rk("B", k, b, base);
+        dumpins_rk("C", k, c, base);
+        break;
+    }
+    case iABx: {
+        int bx = GETARG_Bx(i);
+        logmsg(LOGMSG_USER, " Bx=%d", bx);
+        if (bx < p->sizek)
+            dumpins_kval("Bx", &k[bx], bx);
+        break;
+    }
+    case iAsBx: {
+        int sbx = GETARG_sBx(i);
+        logmsg(LOGMSG_USER, " sBx=%d", sbx);
+        break;
+    }
+    }
+    logmsg(LOGMSG_USER, "\n");
+
+    prev_a = GETARG_A(i);
 }
 
 int luabb_issql_type(lua_State *lua, int index, int sql_type)
