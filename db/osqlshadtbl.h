@@ -89,6 +89,7 @@ struct osqlstate;
 void osql_save_updstat(struct osqlstate *);
 
 int osql_save_delrec(struct BtCursor *pCur, struct sql_thread *thd);
+int osql_update_del_keys(struct BtCursor *pCur, struct sql_thread *thd);
 int osql_save_insrec(struct BtCursor *pCur, struct sql_thread *thd, char *pData,
                      int nData, int flags);
 int osql_save_updrec(struct BtCursor *pCur, struct sql_thread *thd, char *pData,

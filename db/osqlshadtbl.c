@@ -1215,6 +1215,31 @@ int osql_save_delrec(struct BtCursor *pCur, struct sql_thread *thd)
     return 0;
 }
 
+int osql_update_del_keys(struct BtCursor *pCur, struct sql_thread *thd)
+{
+    shad_tbl_t *tbl = NULL;
+
+    if (!(tbl = open_shadtbl(pCur)) || !tbl->blb_cur) {
+        logmsg(LOGMSG_ERROR, "%s: error getting shadtbl\n", __func__);
+        return -1;
+    }
+
+    hash_t *h = tbl->delidx_hash;
+    struct rec_dirty_keys rdk;
+    rdk.seq = pCur->genid;
+    
+    struct rec_dirty_keys* prdk = hash_find(h, &rdk);
+    if (prdk == NULL) {
+        logmsg(LOGMSG_ERROR, "%s: unable to find the dirty key for genid %llu\n", __func__, pCur->genid);
+        return -1;
+    }
+
+    prdk->dirty_keys |= thd->clnt->del_keys;
+    thd->clnt->del_keys = 0;
+
+    return 0;
+}
+
 int osql_save_index(struct BtCursor *pCur, struct sql_thread *thd,
                     int is_update, int is_delete)
 {

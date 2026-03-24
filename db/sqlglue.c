@@ -4018,6 +4018,11 @@ int sqlite3BtreeDelete(BtCursor *pCur, int usage)
                 rc = bdb_tran_deltbl_isdeleted_dedup(pCur->bdbcur, pCur->genid, 0, &bdberr);
                 if (rc == 1) {
                     rc = SQLITE_OK;
+                    if (gbl_partial_indexes && pCur->db->ix_partial &&
+                        osql_update_del_keys(pCur, thd)) {
+                        logmsg(LOGMSG_ERROR, "%s: error updating the shadow dirty keys\n", __func__);
+                        return -1;
+                    }
                     goto done;
                 } else if (rc < 0) {
                     logmsg(LOGMSG_ERROR, "%s:bdb_tran_deltbl_isdeleted error rc = %d bdberr=%d\n", __func__, rc,
