@@ -319,8 +319,9 @@ void seqnum_wait_done(struct ireq *iq, int waitms, int rc)
     if (iq->reptimems > dbenv->max_reptime_ms)
         dbenv->max_reptime_ms = iq->reptimems;
     dbenv->total_reptime_ms += iq->reptimems;
-    /* it counted the commit time up to the wait */
-    ATOMIC_ADD64(n_commit_time, (long long)waitms * 1000);
+    /* from the request's start, as the inline wait counts it; the request
+     * kept its logger, so this includes the time spent handing it over */
+    ATOMIC_ADD64(n_commit_time, (long long)reqlog_current_us(iq->reqlogger));
 
     /* trans_commit_int()'s traces for the wait */
     if (gbl_debug_disttxn_trace)

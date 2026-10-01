@@ -6476,9 +6476,11 @@ add_blkseq:
                   trans, iq->total_txnsize, iq->timeoutms, iq->reptimems, rate);
     }
 
-    int diff_time_micros = (int)reqlog_current_us(iq->reqlogger);
-
-    ATOMIC_ADD64(n_commit_time, diff_time_micros);
+    /* a commit whose ack wait comes after us counts its time once it is over */
+    if (!iq->should_enqueue) {
+        int diff_time_micros = (int)reqlog_current_us(iq->reqlogger);
+        ATOMIC_ADD64(n_commit_time, diff_time_micros);
+    }
     ATOMIC_ADD32(n_commits, 1);
 
     if (outrc == 0) {
